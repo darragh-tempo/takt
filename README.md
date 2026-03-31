@@ -1,36 +1,49 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Takt Landing Page
 
-## Getting Started
-
-First, run the development server:
+## 1) Install and run locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 2) Supabase waitlist setup
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Create the table and policy
 
-## Learn More
+1. Open your Supabase project.
+2. Go to SQL Editor.
+3. Run the script in `supabase/waitlist_signups.sql`.
 
-To learn more about Next.js, take a look at the following resources:
+This creates:
+- `waitlist_signups` table
+- unique email constraint
+- RLS enabled
+- `anon` insert policy for landing page submissions
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Add environment variables
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Copy `.env.example` to `.env.local` and set values from Supabase project settings:
 
-## Deploy on Vercel
+```bash
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 3) Vercel env vars
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+In your Vercel project:
+1. Go to `Settings` -> `Environment Variables`
+2. Add:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+3. Save and redeploy
+
+## 4) Verify form works
+
+1. Submit the waitlist form on your deployed site.
+2. In Supabase Table Editor, open `waitlist_signups`.
+3. Confirm row appears.
+4. Try submitting the same email again to confirm duplicate handling.
