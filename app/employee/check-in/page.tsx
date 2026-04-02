@@ -6,13 +6,13 @@ import { supabase } from "@/lib/supabase-browser";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Returns the ISO week Monday (YYYY-MM-DD) for a given date */
-function getWeekStart(date: Date): string {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day; // Monday = start
-  d.setDate(d.getDate() + diff);
-  return d.toISOString().split("T")[0];
+/** Returns the ISO week number (1–53) for a given date */
+function getISOWeekNumber(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayOfWeek = d.getUTCDay() || 7; // make Sunday = 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayOfWeek); // shift to Thursday of this week
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 }
 
 // ─── Slider ───────────────────────────────────────────────────────────────────
@@ -220,7 +220,9 @@ export default function CheckInPage() {
   const [mood, setMood] = useState(5);
   const [cultureScore, setCultureScore] = useState(5);
 
-  const weekStart = getWeekStart(new Date());
+  const now = new Date();
+  const weekNumber = getISOWeekNumber(now);
+  const currentYear = now.getFullYear();
 
   const init = useCallback(async () => {
     const {
@@ -247,7 +249,8 @@ export default function CheckInPage() {
       .from("check_ins")
       .select("id")
       .eq("employee_id", user.id)
-      .eq("week_start", weekStart)
+      .eq("week_number", weekNumber)
+      .eq("year", currentYear)
       .maybeSingle();
 
     if (existing) {
@@ -268,7 +271,7 @@ export default function CheckInPage() {
     }
 
     setPageState("form");
-  }, [router, weekStart]);
+  }, [router, weekNumber, currentYear]);
 
   useEffect(() => {
     init();
@@ -279,29 +282,41 @@ export default function CheckInPage() {
     setSubmitting(true);
     setError(null);
 
-    try {
-      const { error: insertError } = await supabase.from("check_ins").insert({
-        employee_id: userId,
-        company_id: companyId,
-        week_start: weekStart,
-        sessions_completed: sessions,
-        rpe,
-        energy_level: energy,
-        stress_level: stress,
-        mood_score: mood,
-        culture_question_id: cultureQuestion?.id ?? null,
-        culture_score: cultureQuestion ? cultureScore : null,
-        submitted_at: new Date().toISOString(),
+    const payload = {
+      employee_id: userId,
+      company_id: companyId,
+      week_number: weekNumber,
+      year: currentYear,
+      sessions_completed: sessions,
+      rpe,
+      energy_level: energy,
+      stress_level: stress,
+      mood,
+      culture_question_id: cultureQuestion?.id ?? null,
+      culture_score: cultureQuestion ? cultureScore : null,
+      submitted_at: new Date().toISOString(),
+    };
+
+    console.log("[check-in] submitting", { userId, companyId, weekNumber, currentYear, payload });
+
+    const { error: insertError } = await supabase.from("check_ins").insert(payload);
+
+    console.log("[check-in] insert result", { insertError });
+
+    if (insertError) {
+      console.error("[check-in] insert error details", {
+        message: insertError.message,
+        code: insertError.code,
+        details: insertError.details,
+        hint: insertError.hint,
       });
-
-      if (insertError) throw insertError;
-
-      setPageState("success");
-      setTimeout(() => setSuccessVisible(true), 10);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      setError(insertError.message ?? "Insert failed — check console for details.");
       setSubmitting(false);
+      return;
     }
+
+    setPageState("success");
+    setTimeout(() => setSuccessVisible(true), 10);
   }
 
   // ── Render: loading ────────────────────────────────────────────────────────

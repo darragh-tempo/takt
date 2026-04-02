@@ -6,13 +6,6 @@ import { supabase } from "@/lib/supabase-browser";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getWeekStart(date: Date): string {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diff);
-  return d.toISOString().split("T")[0];
-}
 
 function getGreeting(name: string): string {
   const h = new Date().getHours();
@@ -247,7 +240,7 @@ interface CheckIn {
   id: string;
   energy_level: number;
   stress_level: number;
-  mood_score: number;
+  mood: number;
   sessions_completed: number;
   rpe: number;
 }
@@ -260,7 +253,15 @@ export default function EmployeeDashboard() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [checkIn, setCheckIn] = useState<CheckIn | null>(null);
 
-  const weekStart = getWeekStart(new Date());
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const weekNumber = (() => {
+    const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    const dayOfWeek = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayOfWeek);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  })();
 
   const load = useCallback(async () => {
     const {
@@ -280,9 +281,10 @@ export default function EmployeeDashboard() {
         .single(),
       supabase
         .from("check_ins")
-        .select("id, energy_level, stress_level, mood_score, sessions_completed, rpe")
+        .select("id, energy_level, stress_level, mood, sessions_completed, rpe")
         .eq("employee_id", user.id)
-        .eq("week_start", weekStart)
+        .eq("week_number", weekNumber)
+        .eq("year", currentYear)
         .limit(1)
         .maybeSingle(),
     ]);
@@ -290,7 +292,7 @@ export default function EmployeeDashboard() {
     setProfile(prof ?? null);
     setCheckIn(ci ?? null);
     setLoading(false);
-  }, [router, weekStart]);
+  }, [router, weekNumber, currentYear]);
 
   useEffect(() => {
     load();
@@ -543,7 +545,7 @@ export default function EmployeeDashboard() {
                     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                       <PulseBar label="Energy" value={checkIn.energy_level} max={10} display={`${checkIn.energy_level}/10`} />
                       <PulseBar label="Stress" value={checkIn.stress_level} max={10} display={`${checkIn.stress_level}/10`} />
-                      <PulseBar label="Mood" value={checkIn.mood_score} max={10} display={`${checkIn.mood_score}/10`} />
+                      <PulseBar label="Mood" value={checkIn.mood} max={10} display={`${checkIn.mood}/10`} />
                       <PulseBar label="Sessions" value={checkIn.sessions_completed} max={5} display={`${checkIn.sessions_completed}/5`} />
                     </div>
                   ) : (
