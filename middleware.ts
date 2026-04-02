@@ -23,53 +23,40 @@ export async function middleware(request: NextRequest) {
   const { supabase, response } = await createSupabaseMiddlewareClient(request);
   const pathname = request.nextUrl.pathname;
 
-  console.log('[middleware] pathname:', pathname);
-
   const {
     data: { user },
-    error: getUserError,
   } = await supabase.auth.getUser();
-
-  console.log('[middleware] user:', user ? `${user.id} <${user.email}>` : 'null', getUserError ? `| error: ${getUserError.message}` : '');
 
   // Unauthenticated: allow public routes, redirect everything else to /login
   if (!user) {
     if (PUBLIC_ROUTES.has(pathname)) {
-      console.log('[middleware] decision: no user, public route → pass through');
       return response;
     }
-    console.log('[middleware] decision: no user, protected route → redirect /login');
     const loginUrl = new URL('/login', request.url);
     return NextResponse.redirect(loginUrl);
   }
 
   // Authenticated: fetch profile for role + onboarding status
-  const { data: profile, error: profileError } = await supabase
+  const { data: profile } = await supabase
     .from('profiles')
     .select('role, onboarding_complete')
     .eq('id', user.id)
     .single<{ role: UserRole; onboarding_complete: boolean }>();
 
-  console.log('[middleware] profile:', JSON.stringify(profile), profileError ? `| error: ${profileError.message}` : '');
-
   const role = profile?.role;
   const dashboard = role ? ROLE_DASHBOARDS[role] : null;
-
-  console.log('[middleware] role:', role ?? 'null', '| dashboard:', dashboard ?? 'null');
 
   // Redirect logged-in users away from /login or / to their dashboard
   if (pathname === '/login' || pathname === '/') {
     if (dashboard) {
-      console.log('[middleware] decision: authenticated on', pathname, '→ redirect', dashboard);
       return NextResponse.redirect(new URL(dashboard, request.url));
     }
-    console.log('[middleware] decision: authenticated on', pathname, 'but no profile/dashboard → pass through');
+    // No profile found — let them through rather than redirect-looping
     return response;
   }
 
   // Allow remaining public routes (/signup, /auth/callback) for authenticated users
   if (PUBLIC_ROUTES.has(pathname)) {
-    console.log('[middleware] decision: authenticated, remaining public route → pass through');
     return response;
   }
 
@@ -79,7 +66,6 @@ export async function middleware(request: NextRequest) {
     profile?.onboarding_complete === false &&
     pathname !== '/employee/onboarding'
   ) {
-    console.log('[middleware] decision: employee onboarding incomplete → redirect /employee/onboarding');
     return NextResponse.redirect(new URL('/employee/onboarding', request.url));
   }
 
@@ -87,12 +73,10 @@ export async function middleware(request: NextRequest) {
   if (role && dashboard) {
     const allowedPrefix = ROLE_PREFIXES[role];
     if (!pathname.startsWith(allowedPrefix)) {
-      console.log('[middleware] decision: role', role, 'not allowed on', pathname, '→ redirect', dashboard);
       return NextResponse.redirect(new URL(dashboard, request.url));
     }
   }
 
-  console.log('[middleware] decision: pass through');
   return response;
 }
 
