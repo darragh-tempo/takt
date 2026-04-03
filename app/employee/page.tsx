@@ -58,6 +58,16 @@ function IconProfile({ color }: { color: string }) {
   );
 }
 
+function IconSignOut({ color }: { color: string }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M6 2H3a1 1 0 00-1 1v10a1 1 0 001 1h3" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M11 11l3-3-3-3" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <line x1="14" y1="8" x2="6" y2="8" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
 const NAV = [
@@ -69,7 +79,7 @@ const NAV = [
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
-function Sidebar({ active }: { active: string }) {
+function Sidebar({ active, onSignOut }: { active: string; onSignOut: () => void }) {
   return (
     <aside
       style={{
@@ -117,6 +127,32 @@ function Sidebar({ active }: { active: string }) {
           );
         })}
       </nav>
+      <div style={{ borderTop: "1px solid #E2E8F0", padding: "16px 20px" }}>
+        <button
+          onClick={onSignOut}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            fontSize: 14,
+            color: "#64748B",
+            padding: 0,
+            width: "100%",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = "#EF4444";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = "#64748B";
+          }}
+        >
+          <IconSignOut color="currentColor" />
+          Sign out
+        </button>
+      </div>
     </aside>
   );
 }
@@ -298,6 +334,11 @@ export default function EmployeeDashboard() {
     load();
   }, [load]);
 
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    router.push("/login");
+  };
+
   const firstName = profile?.full_name?.split(" ")[0] ?? "there";
   const currentWeek = profile?.current_week ?? 1;
   const hasCheckIn = checkIn !== null;
@@ -321,9 +362,9 @@ export default function EmployeeDashboard() {
       `}</style>
 
       <div style={{ display: "flex", minHeight: "100vh", background: "#F8FAFC", fontFamily: "Inter, system-ui, -apple-system, sans-serif" }}>
-        <Sidebar active="/employee" />
+        <Sidebar active="/employee" onSignOut={signOut} />
 
-        <main className="takt-main" style={{ flex: 1, padding: "36px 40px", maxWidth: "100%", overflow: "hidden" }}>
+        <main className="takt-main" style={{ flex: 1, padding: "36px 40px", minWidth: 0 }}>
 
           {/* ── Greeting ── */}
           <div style={{ marginBottom: 28 }}>
@@ -348,7 +389,7 @@ export default function EmployeeDashboard() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "minmax(0, 1fr) 320px",
+              gridTemplateColumns: "minmax(0, 1fr) minmax(0, 320px)",
               gap: 16,
               alignItems: "start",
             }}
@@ -412,7 +453,7 @@ export default function EmployeeDashboard() {
                   <div style={{ marginBottom: 16 }}>
                     <span style={{ fontSize: 16, fontWeight: 600, color: "#0F172A" }}>Continue Learning</span>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div className="takt-learning-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                     {[0, 1].map((i) => (
                       <div
                         key={i}
@@ -561,9 +602,10 @@ export default function EmployeeDashboard() {
           {/* Responsive: collapse grid to single column on smaller screens */}
           <style>{`
             @media (max-width: 900px) {
-              .takt-grid {
-                grid-template-columns: 1fr !important;
-              }
+              .takt-grid { grid-template-columns: 1fr !important; }
+            }
+            @media (max-width: 480px) {
+              .takt-learning-grid { grid-template-columns: 1fr !important; }
             }
           `}</style>
         </main>

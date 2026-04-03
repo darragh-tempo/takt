@@ -77,7 +77,7 @@ export default function Home() {
         {/* ── Hero ── */}
         <section
           className="mx-auto w-full max-w-6xl px-6 text-center"
-          style={{ paddingTop: "6rem", paddingBottom: "6rem" }}
+          style={{ paddingTop: "clamp(3rem, 8vw, 6rem)", paddingBottom: "clamp(3rem, 8vw, 6rem)" }}
         >
           {/* Pill badge */}
           <div className="mb-6 flex justify-center">
@@ -142,9 +142,9 @@ export default function Home() {
             </a>
           </div>
 
-          {/* ── Dashboard Mockup ── */}
+          {/* ── Dashboard Mockup — desktop only ── */}
           <div
-            className="mx-auto mt-16 max-w-5xl overflow-hidden rounded-xl"
+            className="mx-auto mt-16 hidden max-w-5xl overflow-hidden rounded-xl sm:block"
             style={{
               border: "1px solid #E2E8F0",
               boxShadow: "0 4px 12px rgba(0,0,0,0.08)",

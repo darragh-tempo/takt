@@ -21,9 +21,19 @@ export default async function CoachPage() {
 
   return (
     <div className="flex min-h-screen" style={{ backgroundColor: "#F8FAFC" }}>
-      {/* Sidebar */}
+
+      {/* Mobile top bar */}
+      <div
+        className="fixed left-0 right-0 top-0 z-50 flex items-center justify-between px-4 md:hidden"
+        style={{ height: 52, backgroundColor: "#FFFFFF", borderBottom: "1px solid #E2E8F0" }}
+      >
+        <span className="text-lg font-semibold" style={{ color: "#0D9488" }}>Takt</span>
+        <SignOutButton />
+      </div>
+
+      {/* Sidebar — hidden on mobile */}
       <aside
-        className="flex w-64 flex-shrink-0 flex-col"
+        className="hidden w-64 flex-shrink-0 flex-col md:flex"
         style={{
           backgroundColor: "#FFFFFF",
           borderRight: "1px solid #E2E8F0",
@@ -68,7 +78,7 @@ export default async function CoachPage() {
       </aside>
 
       {/* Main */}
-      <main className="flex flex-1 flex-col px-10 py-10">
+      <main className="flex flex-1 flex-col px-4 py-16 md:px-10 md:py-10" style={{ minWidth: 0 }}>
         <h1
           className="text-2xl font-semibold"
           style={{ color: "#0F172A" }}
