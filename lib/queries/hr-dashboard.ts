@@ -84,7 +84,10 @@ export async function getWeeklyAverages(
 }
 
 // ---------------------------------------------------------------------------
-// v_company_training_adherence
+// Training adherence
+// Previously queried v_company_training_adherence (view may not be applied).
+// Now computed directly: planned sessions from plan_exercises, completed
+// sessions from session_completions for the current ISO week.
 // ---------------------------------------------------------------------------
 
 export interface TrainingAdherence {
@@ -94,19 +97,68 @@ export interface TrainingAdherence {
 export async function getTrainingAdherence(
   companyId: string
 ): Promise<TrainingAdherence | null> {
-  const { data, error } = await supabase
-    .from("v_company_training_adherence")
-    .select("adherence_rate")
+  const now = new Date();
+  const currentIsoWeek = isoWeekNumber(now);
+  const currentYear = now.getFullYear();
+
+  // Onboarded employees with an assigned plan
+  const { data: employees, error: empErr } = await supabase
+    .from("profiles")
+    .select("id, assigned_plan, current_week")
     .eq("company_id", companyId)
-    .single();
+    .eq("role", "employee")
+    .eq("onboarding_complete", true)
+    .not("assigned_plan", "is", null);
 
-  if (error || !data) return null;
+  if (empErr || !employees || employees.length === 0) return null;
 
-  return { adherenceRate: Number(data.adherence_rate) };
+  // Count planned training days per unique (plan, programme_week) pair.
+  // Each distinct day_number in plan_exercises = 1 planned session.
+  const planCache = new Map<string, number>();
+  let totalPlanned = 0;
+
+  for (const emp of employees) {
+    const key = `${emp.assigned_plan}:${emp.current_week ?? 1}`;
+    if (!planCache.has(key)) {
+      const { data: exercises } = await supabase
+        .from("plan_exercises")
+        .select("day_number")
+        .eq("plan_archetype", emp.assigned_plan)
+        .eq("week_number", emp.current_week ?? 1);
+      planCache.set(key, new Set((exercises ?? []).map((e) => e.day_number)).size);
+    }
+    totalPlanned += planCache.get(key)!;
+  }
+
+  if (totalPlanned === 0) return { adherenceRate: 0 };
+
+  // Completed sessions this ISO week.
+  // session_completions has no year column — filter completed_at by calendar year.
+  const yearStart = new Date(currentYear, 0, 1).toISOString();
+  const yearEnd   = new Date(currentYear + 1, 0, 1).toISOString();
+  const ids = employees.map((e) => e.id);
+
+  const { data: completions, error: compErr } = await supabase
+    .from("session_completions")
+    .select("id")
+    .in("employee_id", ids)
+    .eq("week_number", currentIsoWeek)
+    .gte("completed_at", yearStart)
+    .lt("completed_at", yearEnd);
+
+  if (compErr) return null;
+
+  const totalCompleted = completions?.length ?? 0;
+  const adherenceRate = Number(((totalCompleted / totalPlanned) * 100).toFixed(1));
+
+  return { adherenceRate };
 }
 
 // ---------------------------------------------------------------------------
-// v_company_flagged_employees
+// Flagged employees
+// Previously queried v_company_flagged_employees (view may not be applied).
+// Now computed directly using the same algorithm as getTeamBreakdown:
+// employee is flagged when mood OR energy_level drops ≥ 2 pts vs prior week.
 // ---------------------------------------------------------------------------
 
 export interface FlaggedEmployees {
@@ -116,15 +168,53 @@ export interface FlaggedEmployees {
 export async function getFlaggedEmployees(
   companyId: string
 ): Promise<FlaggedEmployees | null> {
-  const { data, error } = await supabase
-    .from("v_company_flagged_employees")
-    .select("flagged_count")
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentWeek = isoWeekNumber(now);
+
+  const { data: employees, error: empErr } = await supabase
+    .from("profiles")
+    .select("id")
     .eq("company_id", companyId)
-    .single();
+    .eq("role", "employee")
+    .eq("onboarding_complete", true);
 
-  if (error || !data) return null;
+  if (empErr || !employees || employees.length === 0) return { flaggedCount: 0 };
 
-  return { flaggedCount: Number(data.flagged_count) };
+  const ids = employees.map((e) => e.id);
+
+  // Fetch the last 4 weeks so we always have a "previous week" to compare to
+  const { data: checkIns, error: ciErr } = await supabase
+    .from("check_ins")
+    .select("employee_id, mood, energy_level, week_number, year")
+    .in("employee_id", ids)
+    .eq("year", currentYear)
+    .gte("week_number", Math.max(1, currentWeek - 4))
+    .order("week_number", { ascending: false });
+
+  if (ciErr || !checkIns) return null;
+
+  // Group by employee (rows already descending by week_number)
+  const byEmp: Record<string, typeof checkIns> = {};
+  for (const ci of checkIns) {
+    (byEmp[ci.employee_id] ??= []).push(ci);
+  }
+
+  let flaggedCount = 0;
+  for (const cis of Object.values(byEmp)) {
+    const latest = cis[0] ?? null;
+    const prev   = latest
+      ? (cis.find((c) => c.week_number === latest.week_number - 1 && c.year === latest.year) ?? null)
+      : null;
+    if (
+      latest && prev &&
+      (latest.mood - prev.mood <= -2 || latest.energy_level - prev.energy_level <= -2)
+    ) {
+      flaggedCount++;
+    }
+  }
+
+  return { flaggedCount };
 }
 
 // ---------------------------------------------------------------------------
